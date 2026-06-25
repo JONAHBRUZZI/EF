@@ -100,10 +100,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ecr-repository-urls
-          path: .
+          path: /tmp/ecr-artifact
 
-      - name: Move ECR URLs to workspace root
-        run: mv tf-aws-eks-main/ecr_urls.json ecr_urls.json 2>/dev/null || true
+      - name: Locate ECR URLs file
+        run: find /tmp/ecr-artifact -name ecr_urls.json -exec cp {} ecr_urls.json \;
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
