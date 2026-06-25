@@ -20,6 +20,13 @@ spec:
           image: __ECR_REGISTRY__/__ECR_FRONTEND_REPO__:latest
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
 ---
 apiVersion: v1
 kind: Service
