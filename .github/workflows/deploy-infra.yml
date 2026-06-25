@@ -14,10 +14,6 @@ permissions:
   contents: read
   issues: write
 
-defaults:
-  run:
-    working-directory: ./tf-aws-eks-main
-
 env:
   TF_VAR_environment: ${{ vars.ENVIRONMENT }}
   TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
@@ -35,6 +31,9 @@ jobs:
   terraform:
     name: "Terraform Deploy"
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./tf-aws-eks-main
     outputs:
       cluster_name: ${{ steps.outputs.outputs.cluster_name }}
       cluster_endpoint: ${{ steps.outputs.outputs.cluster_endpoint }}
