@@ -9,6 +9,7 @@ on:
 
 env:
   ECR_REPOSITORY: ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-frontend-repo
+  CLUSTER_NAME: ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-eks
 
 jobs:
   build-push-deploy:
@@ -40,45 +41,16 @@ jobs:
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
-      - name: Desplegar Frontend via SSM
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-        run: |
-          aws ssm send-command \
-            --instance-ids ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
-            --document-name "AWS-RunShellScript" \
-            --comment "Actualizar tienda-frontend desde ECR" \
-            --parameters '{"commands":[
-              "set -e",
-              "docker network inspect tienda-net >/dev/null 2>&1 || docker network create tienda-net",
-              "aws ecr get-login-password --region ${{ vars.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}",
-              "docker pull ${{ env.IMAGE_URI }}",
-              "docker stop tienda-frontend 2>/dev/null || true",
-              "docker rm tienda-frontend 2>/dev/null || true",
-              "docker run -d --name tienda-frontend --network tienda-net -p 80:80 ${{ env.IMAGE_URI }}"
-            ]}' \
-            --output text
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
 
-      - name: Verificar health Frontend
+      - name: Actualizar imagen en deployment
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         run: |
-          echo "Esperando 5s para que nginx inicie..."
-          sleep 5
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
-            --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["curl -s -o /dev/null -w \"%{http_code}\" http://localhost:80 || echo 000"]}' \
-            --query 'Command.CommandId' --output text)
-          sleep 5
-          STATUS=$(aws ssm get-command-invocation \
-            --instance-id ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
-            --command-id "$COMMAND_ID" \
-            --query 'StandardOutputContent' --output text)
-          if [ "$STATUS" != "200" ]; then
-            echo "Frontend no saludable (HTTP $STATUS), revierte al tag latest"
-            exit 1
-          fi
-          echo "Frontend saludable (HTTP $STATUS)"
+          kubectl set image deployment/frontend \
+            frontend=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+            -n tienda
+
+      - name: Verificar rollout
+        run: kubectl rollout status deployment/frontend -n tienda --timeout=120s

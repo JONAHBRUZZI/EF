@@ -9,6 +9,7 @@ on:
 
 env:
   ECR_REPOSITORY: ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-db-repo
+  CLUSTER_NAME: ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-eks
 
 jobs:
   build-push-deploy:
@@ -40,46 +41,16 @@ jobs:
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
-      - name: Desplegar DB via SSM
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-        run: |
-          aws ssm send-command \
-            --instance-ids ${{ secrets.EC2_DB_INSTANCE_ID }} \
-            --document-name "AWS-RunShellScript" \
-            --comment "Actualizar tienda-db desde ECR" \
-            --parameters '{"commands":[
-              "set -e",
-              "docker network inspect tienda-net >/dev/null 2>&1 || docker network create tienda-net",
-              "aws ecr get-login-password --region ${{ vars.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}",
-              "docker pull ${{ env.IMAGE_URI }}",
-              "docker stop tienda-db 2>/dev/null || true",
-              "docker rm tienda-db 2>/dev/null || true",
-              "docker run -d --name tienda-db --network tienda-net -p 3306:3306 -v dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=admin123 -e MYSQL_DATABASE=tienda_perritos -e MYSQL_USER=alumno -e MYSQL_PASSWORD=alumno123 ${{ env.IMAGE_URI }}"
-            ]}' \
-            --output text
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
 
-      - name: Verificar health DB
+      - name: Actualizar imagen en deployment
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         run: |
-          echo "Esperando 20s para que MySQL inicie..."
-          sleep 20
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids ${{ secrets.EC2_DB_INSTANCE_ID }} \
-            --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["docker exec tienda-db mysqladmin ping -h localhost -u root -padmin123 2>&1 || echo UNHEALTHY"]}' \
-            --query 'Command.CommandId' --output text)
-          sleep 5
-          RESULT=$(aws ssm get-command-invocation \
-            --instance-id ${{ secrets.EC2_DB_INSTANCE_ID }} \
-            --command-id "$COMMAND_ID" \
-            --query 'StandardOutputContent' --output text)
-          echo "$RESULT"
-          if echo "$RESULT" | grep -q "UNHEALTHY"; then
-            echo "DB no esta saludable, revierte al tag latest"
-            exit 1
-          fi
-          echo "DB saludable"
+          kubectl set image deployment/db \
+            db=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
+            -n tienda
+
+      - name: Verificar rollout
+        run: kubectl rollout status deployment/db -n tienda --timeout=120s

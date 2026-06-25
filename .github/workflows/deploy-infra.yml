@@ -144,11 +144,5 @@ jobs:
           kubectl apply -f k8s/backend.yaml
           kubectl apply -f k8s/frontend.yaml
 
-      - name: Wait for deployments
-        run: |
-          kubectl -n tienda rollout status deployment/db --timeout=120s
-          kubectl -n tienda rollout status deployment/backend --timeout=120s
-          kubectl -n tienda rollout status deployment/frontend --timeout=120s
-
-      - name: Show services
+      - name: Show resources (imagenes las pushean los pipelines de app)
         run: kubectl -n tienda get all
