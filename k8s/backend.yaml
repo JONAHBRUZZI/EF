@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: tienda
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: __ECR_REGISTRY__/__ECR_BACKEND_REPO__:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: tienda-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: DB_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: tienda
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP

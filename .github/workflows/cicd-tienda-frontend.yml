@@ -51,10 +51,34 @@ jobs:
             --comment "Actualizar tienda-frontend desde ECR" \
             --parameters '{"commands":[
               "set -e",
+              "docker network inspect tienda-net >/dev/null 2>&1 || docker network create tienda-net",
               "aws ecr get-login-password --region ${{ vars.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}",
               "docker pull ${{ env.IMAGE_URI }}",
-              "docker stop tienda-frontend || true",
-              "docker rm tienda-frontend || true",
-              "docker run -d --name tienda-frontend -p 80:80 ${{ env.IMAGE_URI }}"
+              "docker stop tienda-frontend 2>/dev/null || true",
+              "docker rm tienda-frontend 2>/dev/null || true",
+              "docker run -d --name tienda-frontend --network tienda-net -p 80:80 ${{ env.IMAGE_URI }}"
             ]}' \
             --output text
+
+      - name: Verificar health Frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        run: |
+          echo "Esperando 5s para que nginx inicie..."
+          sleep 5
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters '{"commands":["curl -s -o /dev/null -w \"%{http_code}\" http://localhost:80 || echo 000"]}' \
+            --query 'Command.CommandId' --output text)
+          sleep 5
+          STATUS=$(aws ssm get-command-invocation \
+            --instance-id ${{ secrets.EC2_FRONTEND_INSTANCE_ID }} \
+            --command-id "$COMMAND_ID" \
+            --query 'StandardOutputContent' --output text)
+          if [ "$STATUS" != "200" ]; then
+            echo "Frontend no saludable (HTTP $STATUS), revierte al tag latest"
+            exit 1
+          fi
+          echo "Frontend saludable (HTTP $STATUS)"

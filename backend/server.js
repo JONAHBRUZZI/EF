@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const {
-  DB_HOST = "10.0.2.134", // acá colocar la IP Privada EC2 DB
+  DB_HOST = "db",
   DB_USER = "root",
   DB_PASSWORD = "admin123",
   DB_NAME = "tienda_perritos",
@@ -18,9 +18,32 @@ app.use(express.json());
 
 let pool;
 
-// Inicializar pool de conexiones
+async function waitForDb(retries = 15, delay = 2000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const testPool = mysql.createPool({
+        host: DB_HOST,
+        user: DB_USER,
+        password: DB_PASSWORD,
+        port: DB_PORT,
+        waitForConnections: true,
+        connectionLimit: 1,
+      });
+      await testPool.query("SELECT 1");
+      await testPool.end();
+      console.log(`Conexion a MySQL lista en ${DB_HOST}:${DB_PORT}`);
+      return;
+    } catch (err) {
+      console.log(`Esperando MySQL (intento ${i + 1}/${retries})...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error(`No se pudo conectar a MySQL despues de ${retries} intentos`);
+}
+
 async function initDb() {
   try {
+    await waitForDb();
     pool = mysql.createPool({
       host: DB_HOST,
       user: DB_USER,
@@ -34,6 +57,7 @@ async function initDb() {
     console.log("Pool de conexiones MySQL inicializado.");
   } catch (err) {
     console.error("Error al inicializar pool de MySQL:", err);
+    process.exit(1);
   }
 }
 
