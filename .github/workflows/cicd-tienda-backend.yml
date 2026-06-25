@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "backend/**"
+  workflow_dispatch:
 
 env:
   ECR_REPOSITORY: ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-backend-repo
