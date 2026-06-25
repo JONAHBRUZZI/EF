@@ -1,0 +1,10 @@
+environment  = ""
+project_name = ""
+owner_name   = ""
+aws_region   = ""
+aws_profile  = ""
+vpc_cidr     = ""
+
+# Compute type: "fargate" or "nodes"
+node_or_fargate = "fargate"
+apps_repository = ["", "", ""]

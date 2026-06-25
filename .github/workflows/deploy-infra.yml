@@ -1,0 +1,91 @@
+name: "EKS - Deploy Infrastructure"
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+    paths:
+      - "tf-aws-eks-main/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+defaults:
+  run:
+    working-directory: ./tf-aws-eks-main
+
+env:
+  TF_VAR_environment: ${{ vars.ENVIRONMENT }}
+  TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
+  TF_VAR_owner_name: ${{ vars.OWNER_NAME }}
+  TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+  TF_VAR_vpc_cidr: ${{ vars.VPC_CIDR }}
+  TF_VAR_kubernetes_version: ${{ vars.KUBERNETES_VERSION }}
+  TF_VAR_node_or_fargate: ${{ vars.NODE_OR_FARGATE }}
+  TF_VAR_apps_repository: ${{ vars.APPS_REPOSITORY }}
+  TF_VAR_node_group_instance_types: ${{ vars.NODE_GROUP_INSTANCE_TYPES }}
+  TF_VAR_node_group_capacity_type: ${{ vars.NODE_GROUP_CAPACITY_TYPE }}
+  TF_VAR_aws_profile: ""
+
+jobs:
+  deploy:
+    name: "Terraform Deploy"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9.0"
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.BUCKET_BACKEND }}" \
+            -backend-config="key=${{ vars.KEY_BACKEND }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -out=tfplan -no-color
+
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get deployment outputs
+        id: outputs
+        run: |
+          echo "cluster_name=$(terraform output -raw cluster_name)" >> $GITHUB_OUTPUT
+          echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
+          echo "kubectl_command=$(terraform output -raw configure_kubectl_command)" >> $GITHUB_OUTPUT
+          terraform output -json ecr_repository_urls > ecr_urls.json
+
+      - name: Upload ECR URLs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecr-repository-urls
+          path: ./tf-aws-eks-main/ecr_urls.json
+
+      - name: Configure kubectl
+        run: ${{ steps.outputs.outputs.kubectl_command }}
+
+      - name: Verify cluster connectivity
+        run: kubectl get nodes
