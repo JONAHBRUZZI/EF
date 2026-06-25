@@ -125,18 +125,22 @@ jobs:
           ECR_BACKEND=$(jq -r '.backend' ecr_urls.json)
           ECR_DB=$(jq -r '.db' ecr_urls.json)
           ECR_REGISTRY=$(echo "$ECR_FRONTEND" | cut -d'/' -f1)
+          FRONTEND_REPO=$(echo "$ECR_FRONTEND" | cut -d'/' -f2)
+          BACKEND_REPO=$(echo "$ECR_BACKEND" | cut -d'/' -f2)
+          DB_REPO=$(echo "$ECR_DB" | cut -d'/' -f2)
 
           echo "ECR_REGISTRY=$ECR_REGISTRY"
-          echo "ECR_FRONTEND_REPO=$(echo "$ECR_FRONTEND" | cut -d'/' -f2)"
-          echo "ECR_BACKEND_REPO=$(echo "$ECR_BACKEND" | cut -d'/' -f2)"
-          echo "ECR_DB_REPO=$(echo "$ECR_DB" | cut -d'/' -f2)"
+          echo "ECR_FRONTEND_REPO=$FRONTEND_REPO"
+          echo "ECR_BACKEND_REPO=$BACKEND_REPO"
+          echo "ECR_DB_REPO=$DB_REPO"
 
-          for f in k8s/*.yaml; do
-            sed -i "s|__ECR_REGISTRY__|$ECR_REGISTRY|g" "$f"
-            sed -i "s|__ECR_FRONTEND_REPO__|$(echo "$ECR_FRONTEND" | cut -d'/' -f2)|g" "$f"
-            sed -i "s|__ECR_BACKEND_REPO__|$(echo "$ECR_BACKEND" | cut -d'/' -f2)|g" "$f"
-            sed -i "s|__ECR_DB_REPO__|$(echo "$ECR_DB" | cut -d'/' -f2)|g" "$f"
-          done
+          echo "=== Archivos en k8s/ ==="
+          ls -la k8s/
+
+          find k8s -name '*.yaml' -exec sed -i "s|__ECR_REGISTRY__|$ECR_REGISTRY|g" {} \;
+          find k8s -name '*.yaml' -exec sed -i "s|__ECR_FRONTEND_REPO__|$FRONTEND_REPO|g" {} \;
+          find k8s -name '*.yaml' -exec sed -i "s|__ECR_BACKEND_REPO__|$BACKEND_REPO|g" {} \;
+          find k8s -name '*.yaml' -exec sed -i "s|__ECR_DB_REPO__|$DB_REPO|g" {} \;
 
       - name: Apply K8s manifests
         run: |
