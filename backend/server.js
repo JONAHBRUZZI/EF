@@ -157,8 +157,12 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Backend de tienda de perritos en ejecución." });
 });
 
-// Iniciar servidor
-app.listen(PORT, async () => {
-  console.log(`Servidor backend escuchando en puerto ${PORT}`);
-  await initDb();
-});
+// Iniciar servidor (se omite bajo test para poder importar `app` sin abrir puerto ni conectar a MySQL)
+if (require.main === module) {
+  app.listen(PORT, async () => {
+    console.log(`Servidor backend escuchando en puerto ${PORT}`);
+    await initDb();
+  });
+}
+
+module.exports = app;

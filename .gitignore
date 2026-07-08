@@ -1,0 +1,15 @@
+node_modules/
+npm-debug.log
+
+# Terraform
+tf-aws-eks-main/.terraform/
+tf-aws-eks-main/.terraform.lock.hcl
+tf-aws-eks-main/*.tfstate
+tf-aws-eks-main/*.tfstate.*
+tf-aws-eks-main/tfplan
+tf-aws-eks-main/terraform.tfvars
+tf-aws-eks-main/backend.hcl
+tf-aws-eks-main/ecr_urls.json
+
+# Editor / OS
+.DS_Store

@@ -17,7 +17,7 @@ resource "aws_ecr_repository" "this" {
   }
 
   tags = {
-    Name    = "${local.name_prefix}-${each.key}-repo"
+    Name = "${local.name_prefix}-${each.key}-repo"
   }
 }
 
@@ -30,25 +30,27 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 tagged images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["v"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
-        }
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 2
         description  = "Remove untagged images after 7 days"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"
           countUnit   = "days"
           countNumber = 7
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        # El pipeline etiqueta las imagenes con el SHA del commit y "latest" (no con
+        # prefijo "v"), asi que la regla usa tagStatus "any" para cubrir todas las
+        # imagenes restantes y evitar que se acumulen indefinidamente en ECR.
+        rulePriority = 2
+        description  = "Keep last 10 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = {
           type = "expire"

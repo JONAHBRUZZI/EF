@@ -19,6 +19,23 @@ jobs:
       - name: Checkout codigo
         uses: actions/checkout@v4
 
+      - name: Build imagen local
+        run: docker build -t frontend:ci ./frontend
+
+      - name: Test - smoke test del contenedor
+        run: |
+          docker run -d --rm --name frontend-ci -p 8080:80 frontend:ci
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8080/ > /dev/null; then
+              echo "Frontend respondio correctamente."
+              break
+            fi
+            echo "Esperando frontend (intento $i)..."
+            sleep 2
+          done
+          curl -sf http://localhost:8080/ > /dev/null
+          docker stop frontend-ci
+
       - name: Configurar credenciales AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,13 +48,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag y push a ECR
+      - name: Tag y push a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          cd frontend
-          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }} .
-          docker tag $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }} $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+          docker tag frontend:ci $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          docker tag frontend:ci $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
