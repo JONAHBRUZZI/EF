@@ -244,7 +244,15 @@ resource "aws_launch_template" "nodes" {
   count       = var.node_or_fargate == "nodes" ? 1 : 0
   name_prefix = "${local.cluster_name}-nodes-"
 
-  vpc_security_group_ids = [aws_security_group.node_group[0].id]
+  # IMPORTANTE: al especificar un launch template propio, EKS deja de adjuntar
+  # automaticamente el Security Group del cluster a los nodos - hay que incluirlo
+  # explicitamente junto con el nuestro, o se rompe la comunicacion pod-a-pod y
+  # kubelet<->control-plane (nginx del frontend responde 502 al intentar hablar
+  # con el backend si falta este SG).
+  vpc_security_group_ids = [
+    aws_security_group.node_group[0].id,
+    aws_eks_cluster.this.vpc_config[0].cluster_security_group_id,
+  ]
 
   metadata_options {
     http_endpoint               = "enabled"
