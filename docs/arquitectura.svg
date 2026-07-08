@@ -1,0 +1,114 @@
+<svg viewBox="0 0 1200 860" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Arial, Helvetica, sans-serif">
+  <title>Arquitectura de despliegue - Tienda de Perritos en AWS EKS</title>
+  <desc>GitHub Actions construye y publica imagenes en Amazon ECR; un cluster EKS dentro de una VPC con subredes publicas y privadas en dos zonas de disponibilidad ejecuta frontend, backend y base de datos; CloudWatch centraliza logs y metricas.</desc>
+
+  <rect x="0" y="0" width="1200" height="860" fill="#ffffff"/>
+
+  <!-- CI/CD row -->
+  <rect x="30" y="20" width="230" height="70" rx="10" fill="#24292e"/>
+  <text x="145" y="48" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">GitHub Actions</text>
+  <text x="145" y="68" fill="#c9d1d9" font-size="12" text-anchor="middle">build - test - push - deploy</text>
+
+  <path d="M260 55 H345" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="350" y="20" width="200" height="70" rx="10" fill="#ff9900"/>
+  <text x="450" y="48" fill="#1b1b1b" font-size="15" font-weight="bold" text-anchor="middle">Amazon ECR</text>
+  <text x="450" y="68" fill="#1b1b1b" font-size="12" text-anchor="middle">3 repos: frontend/backend/db</text>
+
+  <path d="M450 90 V115" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="820" y="20" width="230" height="70" rx="10" fill="#3f8624"/>
+  <text x="935" y="48" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">CloudWatch</text>
+  <text x="935" y="68" fill="#e6f2df" font-size="12" text-anchor="middle">Logs del cluster + metricas</text>
+
+  <!-- AWS account / region box -->
+  <rect x="60" y="120" width="1080" height="700" rx="14" fill="#f4f8ff" stroke="#8aa9d6" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="80" y="145" fill="#2a4d7a" font-size="13" font-weight="bold">AWS - Cuenta Learner Lab - Region us-east-1</text>
+
+  <!-- VPC box -->
+  <rect x="90" y="160" width="1020" height="600" rx="12" fill="#eef4ff" stroke="#5b7fb5" stroke-width="1.5"/>
+  <text x="110" y="184" fill="#25406b" font-size="13" font-weight="bold">VPC 10.10.0.0/24</text>
+
+  <!-- Internet -->
+  <ellipse cx="600" cy="205" rx="70" ry="24" fill="#dfe7f2" stroke="#5b7fb5"/>
+  <text x="600" y="210" font-size="12" text-anchor="middle" fill="#25406b">Internet</text>
+  <path d="M600 229 V255" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ALB -->
+  <rect x="480" y="258" width="240" height="46" rx="8" fill="#ffb84d" stroke="#b57b1e"/>
+  <text x="600" y="286" font-size="13" text-anchor="middle" fill="#4a2e00">Load Balancer (Service frontend)</text>
+
+  <!-- AZ A -->
+  <rect x="120" y="320" width="470" height="410" rx="10" fill="#ffffff" stroke="#9db6dd"/>
+  <text x="140" y="342" font-size="12" font-weight="bold" fill="#374a63">Zona de disponibilidad: us-east-1a</text>
+
+  <rect x="140" y="356" width="430" height="70" rx="8" fill="#e4ecf9" stroke="#9db6dd"/>
+  <text x="355" y="378" font-size="12" text-anchor="middle" fill="#374a63" font-weight="bold">Subred publica 1a</text>
+  <text x="355" y="396" font-size="11" text-anchor="middle" fill="#374a63">NAT Instance (salida a internet subredes privadas)</text>
+
+  <rect x="140" y="440" width="430" height="270" rx="8" fill="#eaf3ea" stroke="#7fae7f"/>
+  <text x="355" y="462" font-size="12" text-anchor="middle" fill="#2c4a2c" font-weight="bold">Subred privada 1a - Nodo EKS</text>
+
+  <!-- AZ B -->
+  <rect x="610" y="320" width="470" height="410" rx="10" fill="#ffffff" stroke="#9db6dd"/>
+  <text x="630" y="342" font-size="12" font-weight="bold" fill="#374a63">Zona de disponibilidad: us-east-1b</text>
+
+  <rect x="630" y="356" width="430" height="70" rx="8" fill="#e4ecf9" stroke="#9db6dd"/>
+  <text x="845" y="378" font-size="12" text-anchor="middle" fill="#374a63" font-weight="bold">Subred publica 1b</text>
+  <text x="845" y="396" font-size="11" text-anchor="middle" fill="#374a63">Ruta hacia Internet Gateway</text>
+
+  <rect x="630" y="440" width="430" height="270" rx="8" fill="#eaf3ea" stroke="#7fae7f"/>
+  <text x="845" y="462" font-size="12" text-anchor="middle" fill="#2c4a2c" font-weight="bold">Subred privada 1b - Nodo EKS</text>
+
+  <!-- EKS cluster overlay spanning both private subnets -->
+  <rect x="160" y="480" width="880" height="210" rx="10" fill="#fff6e0" stroke="#c9a13a" stroke-width="1.5"/>
+  <text x="600" y="502" font-size="13" text-anchor="middle" fill="#5c4813" font-weight="bold">Cluster EKS - namespace "tienda"</text>
+
+  <!-- Pods: frontend, backend, db -->
+  <rect x="185" y="518" width="250" height="150" rx="8" fill="#ffffff" stroke="#c9a13a"/>
+  <text x="310" y="540" font-size="12" text-anchor="middle" font-weight="bold" fill="#374a63">frontend (nginx)</text>
+  <text x="310" y="558" font-size="11" text-anchor="middle" fill="#555">Deployment + Service LB</text>
+  <text x="310" y="576" font-size="11" text-anchor="middle" fill="#555">HPA 1-3 replicas</text>
+  <text x="310" y="600" font-size="10.5" text-anchor="middle" fill="#777">proxy_pass /api/ -&gt; backend:3001</text>
+
+  <path d="M435 590 H465" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="470" y="518" width="250" height="150" rx="8" fill="#ffffff" stroke="#c9a13a"/>
+  <text x="595" y="540" font-size="12" text-anchor="middle" font-weight="bold" fill="#374a63">backend (Node/Express)</text>
+  <text x="595" y="558" font-size="11" text-anchor="middle" fill="#555">Deployment + Service ClusterIP</text>
+  <text x="595" y="576" font-size="11" text-anchor="middle" fill="#555">HPA 1-3 replicas</text>
+  <text x="595" y="600" font-size="10.5" text-anchor="middle" fill="#777">Secrets: DB_USER / DB_PASSWORD</text>
+
+  <path d="M720 590 H750" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="755" y="518" width="250" height="150" rx="8" fill="#ffffff" stroke="#c9a13a"/>
+  <text x="880" y="540" font-size="12" text-anchor="middle" font-weight="bold" fill="#374a63">db (MySQL 8)</text>
+  <text x="880" y="558" font-size="11" text-anchor="middle" fill="#555">Deployment + Service ClusterIP</text>
+  <text x="880" y="576" font-size="11" text-anchor="middle" fill="#555">Volumen emptyDir</text>
+  <text x="880" y="600" font-size="10.5" text-anchor="middle" fill="#777">Secrets: MYSQL_ROOT_PASSWORD</text>
+
+  <!-- IAM note -->
+  <rect x="160" y="700" width="880" height="30" rx="6" fill="#f0f0f0" stroke="#bbb"/>
+  <text x="600" y="720" font-size="11" text-anchor="middle" fill="#444">IAM: LabEksClusterRole / LabEksNodeRole (roles del Learner Lab, minimo privilegio disponible)</text>
+
+  <!-- connections to ALB -->
+  <path d="M600 304 V320" stroke="#555" stroke-width="2" stroke-dasharray="4 3"/>
+  <path d="M310 320 V330" stroke="#555" stroke-width="0" />
+
+  <!-- CloudWatch links -->
+  <path d="M935 90 V115 Q935 480 780 480" fill="none" stroke="#3f8624" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowgreen)"/>
+  <path d="M260 55 Q935 30 935 20" fill="none" stroke="#3f8624" stroke-width="0"/>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#555"/>
+    </marker>
+    <marker id="arrowgreen" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#3f8624"/>
+    </marker>
+  </defs>
+
+  <!-- Legend -->
+  <text x="80" y="800" font-size="11" fill="#555">Flujo: GitHub Actions publica imagenes en ECR -&gt; el cluster EKS las despliega -&gt; el trafico entra por el Load Balancer -&gt; frontend -&gt; backend -&gt; db.</text>
+  <text x="80" y="818" font-size="11" fill="#555">Logs de pipeline (Actions) y logs/metricas del cluster (control plane, CPU/memoria via metrics-server) se centralizan en CloudWatch.</text>
+</svg>

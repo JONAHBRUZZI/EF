@@ -33,6 +33,15 @@ Los tres componentes corren en contenedores independientes, conectados por una r
 interna (`tienda-net` en Docker Compose, namespace `tienda` en Kubernetes). El frontend
 nunca habla directo con la base de datos: todo pasa por la API del backend.
 
+Diagrama de despliegue completo (VPC, subredes, EKS, ECR, CloudWatch): ver
+[`docs/arquitectura.svg`](docs/arquitectura.svg), incluido también en el informe.
+
+## Informe
+
+El informe técnico (formato Word) que justifica las decisiones de arquitectura,
+contenerización, CI/CD, infraestructura, secretos, observabilidad, seguridad y
+orquestación está en [`docs/Informe_Tienda_Perritos_EFT.docx`](docs/Informe_Tienda_Perritos_EFT.docx).
+
 ## Estructura del repositorio
 
 ```
