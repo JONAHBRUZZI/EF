@@ -91,3 +91,15 @@ variable "node_group_capacity_type" {
     error_message = "Must be either 'ON_DEMAND' or 'SPOT'."
   }
 }
+
+variable "frontend_node_port" {
+  description = "NodePort fijo usado por el Service frontend (type=LoadBalancer). Se referencia en el Security Group del LB y de los nodos para restringir el trafico a un unico puerto conocido."
+  type        = number
+  default     = 30080
+}
+
+variable "enable_node_cloudwatch_metrics" {
+  description = "Adjunta CloudWatchAgentServerPolicy al rol del node group para habilitar metricas/logs reales en CloudWatch Container Insights. Deshabilitado por defecto porque varios Learner Labs bloquean iam:AttachRolePolicy incluso sobre roles pre-existentes; dejarlo en false garantiza que Terraform nunca falle por permisos de IAM."
+  type        = bool
+  default     = false
+}

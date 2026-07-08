@@ -115,7 +115,16 @@ la infraestructura.
 - Imágenes base minimalistas (`node:18-alpine`, `nginx:alpine`, `mysql:8`); el backend usa
   un Dockerfile multietapa y corre como usuario no root.
 - Escaneo de vulnerabilidades activado en ECR (`scan_on_push`).
+- 3 Security Groups explícitos y restrictivos (`tf-aws-eks-main/security_groups.tf`): uno
+  para el plano de control EKS, uno para los nodos (Launch Template propio) y uno para el
+  Load Balancer público del frontend — ver detalle en
+  [`tf-aws-eks-main/README.md`](tf-aws-eks-main/README.md#security-groups-security_groupstf).
+- IMDSv2 obligatorio y volumen EBS cifrado en las instancias del node group.
 - Credenciales de base de datos gestionadas vía `k8s/secrets.yaml` (Kubernetes Secret) y
   GitHub Secrets para las credenciales de AWS — nunca hardcodeadas en el código fuente.
 - El acceso al clúster EKS usa los roles IAM del Learner Lab con permisos acotados al
   ciclo de vida de la infraestructura definida en Terraform.
+- Métricas y logs de recursos en CloudWatch Container Insights (`k8s/cloudwatch-agent.yaml`),
+  vía el rol de instancia del node group (el Lab no soporta IRSA/OIDC) — deshabilitado por
+  defecto (`enable_node_cloudwatch_metrics = false`) para que el pipeline nunca falle por un
+  permiso de IAM que el Lab podría no otorgar; se activa sin tocar código si el rol lo permite.

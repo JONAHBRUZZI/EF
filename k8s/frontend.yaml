@@ -33,10 +33,15 @@ kind: Service
 metadata:
   name: frontend
   namespace: tienda
+  annotations:
+    # SG creado por Terraform (aws_security_group.frontend_lb): solo expone el
+    # puerto 80 hacia internet y solo reenvia al NodePort fijo de abajo.
+    service.beta.kubernetes.io/aws-load-balancer-security-groups: "__FRONTEND_LB_SG__"
 spec:
   selector:
     app: frontend
   ports:
     - port: 80
       targetPort: 80
+      nodePort: __FRONTEND_NODE_PORT__
   type: LoadBalancer

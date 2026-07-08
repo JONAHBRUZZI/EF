@@ -28,6 +28,29 @@ data "aws_iam_role" "node" {
 }
 
 ################################################################################
+# Observabilidad - CloudWatch Container Insights (opcional, resiliente)
+#
+# El Learner Lab no permite crear un OIDC Provider (ver comentario del EBS CSI
+# Driver mas abajo), por lo que no se puede usar IRSA/Pod Identity para dar
+# permisos de CloudWatch al agente. La alternativa clasica (sin IRSA) es usar
+# directamente el rol de instancia del node group (LabEksNodeRole) agregandole
+# la policy administrada CloudWatchAgentServerPolicy.
+#
+# Esto se deja detras de una variable (default = false) porque en la mayoria de
+# los Learner Labs esta bloqueado modificar/adjuntar policies a los roles
+# provistos (iam:AttachRolePolicy suele estar denegado por el propio Lab). Si
+# se deja en false (default), Terraform nunca toca IAM y el pipeline no puede
+# romperse por este motivo. Si el rol del Lab si lo permite, se puede habilitar
+# con TF_VAR_enable_node_cloudwatch_metrics=true sin tocar el resto del codigo.
+################################################################################
+
+resource "aws_iam_role_policy_attachment" "node_cloudwatch_agent" {
+  count      = var.enable_node_cloudwatch_metrics ? 1 : 0
+  role       = data.aws_iam_role.node.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+################################################################################
 # VPC 
 ################################################################################
 
@@ -128,6 +151,7 @@ resource "aws_eks_cluster" "this" {
     endpoint_private_access = true
     endpoint_public_access  = true
     subnet_ids              = module.vpc.public_subnets
+    security_group_ids      = [aws_security_group.cluster_additional.id]
   }
 
   tags = {
@@ -136,7 +160,9 @@ resource "aws_eks_cluster" "this" {
 
   depends_on = [
     aws_cloudwatch_log_group.cluster,
-    module.nat_instance
+    module.nat_instance,
+    aws_security_group_rule.cluster_ingress_https_from_vpc,
+    aws_security_group_rule.cluster_egress_to_vpc
   ]
 
 }
@@ -204,6 +230,55 @@ resource "aws_eks_fargate_profile" "this" {
 }
 
 ################################################################################
+# Launch Template para el Managed Node Group
+#
+# Se usa un launch template propio unicamente para:
+#   1) Adjuntar el Security Group restrictivo aws_security_group.node_group
+#   2) Forzar IMDSv2 (http_tokens = "required"), mitigando robo de credenciales
+#      via SSRF (endurecimiento basico de las instancias del cluster)
+# No se especifica AMI ni user-data: EKS los completa automaticamente con la
+# misma imagen y bootstrap que usaria sin launch template.
+################################################################################
+
+resource "aws_launch_template" "nodes" {
+  count       = var.node_or_fargate == "nodes" ? 1 : 0
+  name_prefix = "${local.cluster_name}-nodes-"
+
+  vpc_security_group_ids = [aws_security_group.node_group[0].id]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required" # IMDSv2 obligatorio
+    http_put_response_hop_limit = 2
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 20
+      volume_type           = "gp3"
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${local.cluster_name}-node"
+    }
+  }
+
+  tags = {
+    Name = "${local.cluster_name}-nodes-lt"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+################################################################################
 # Managed Node Group (only when node_or_fargate = "nodes")
 ################################################################################
 
@@ -216,7 +291,11 @@ resource "aws_eks_node_group" "this" {
   subnet_ids      = module.vpc.private_subnets
   instance_types  = var.node_group_instance_types
   capacity_type   = var.node_group_capacity_type
-  disk_size       = 20
+
+  launch_template {
+    id      = aws_launch_template.nodes[0].id
+    version = aws_launch_template.nodes[0].latest_version
+  }
 
   scaling_config {
     desired_size = 1
@@ -232,7 +311,13 @@ resource "aws_eks_node_group" "this" {
     Name = "${local.cluster_name}-nodes"
   }
 
-  depends_on = [module.nat_instance]
+  depends_on = [
+    module.nat_instance,
+    aws_security_group_rule.nodes_ingress_self,
+    aws_security_group_rule.nodes_ingress_cluster,
+    aws_security_group_rule.nodes_ingress_frontend_nodeport,
+    aws_security_group_rule.nodes_egress_all,
+  ]
 }
 
 ################################################################################

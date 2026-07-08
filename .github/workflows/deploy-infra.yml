@@ -25,6 +25,7 @@ env:
   TF_VAR_apps_repository: ${{ vars.APPS_REPOSITORY }}
   TF_VAR_node_group_instance_types: ${{ vars.NODE_GROUP_INSTANCE_TYPES }}
   TF_VAR_node_group_capacity_type: ${{ vars.NODE_GROUP_CAPACITY_TYPE }}
+  TF_VAR_enable_node_cloudwatch_metrics: ${{ vars.ENABLE_NODE_CLOUDWATCH_METRICS || 'false' }}
   TF_VAR_aws_profile: ""
 
 jobs:
@@ -80,12 +81,19 @@ jobs:
           echo "cluster_endpoint=$(terraform output -raw cluster_endpoint)" >> $GITHUB_OUTPUT
           echo "kubectl_command=$(terraform output -raw configure_kubectl_command)" >> $GITHUB_OUTPUT
           terraform output -json ecr_repository_urls > ecr_urls.json
+          echo "{}" \
+            | jq --arg sg "$(terraform output -raw frontend_lb_security_group_id)" \
+                 --arg port "$(terraform output -raw frontend_node_port)" \
+                 '.frontend_lb_security_group_id = $sg | .frontend_node_port = $port' \
+            > network_outputs.json
 
-      - name: Upload ECR URLs artifact
+      - name: Upload deployment outputs artifact
         uses: actions/upload-artifact@v4
         with:
           name: ecr-repository-urls
-          path: ./tf-aws-eks-main/ecr_urls.json
+          path: |
+            ./tf-aws-eks-main/ecr_urls.json
+            ./tf-aws-eks-main/network_outputs.json
 
   deploy-k8s:
     name: "Deploy K8s Manifests"
@@ -101,8 +109,10 @@ jobs:
           name: ecr-repository-urls
           path: /tmp/ecr-artifact
 
-      - name: Locate ECR URLs file
-        run: find /tmp/ecr-artifact -name ecr_urls.json -exec cp {} ecr_urls.json \;
+      - name: Locate deployment outputs files
+        run: |
+          find /tmp/ecr-artifact -name ecr_urls.json -exec cp {} ecr_urls.json \;
+          find /tmp/ecr-artifact -name network_outputs.json -exec cp {} network_outputs.json \;
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -127,11 +137,15 @@ jobs:
           FRONTEND_REPO=$(echo "$ECR_FRONTEND" | cut -d'/' -f2)
           BACKEND_REPO=$(echo "$ECR_BACKEND" | cut -d'/' -f2)
           DB_REPO=$(echo "$ECR_DB" | cut -d'/' -f2)
+          FRONTEND_LB_SG=$(jq -r '.frontend_lb_security_group_id' network_outputs.json)
+          FRONTEND_NODE_PORT=$(jq -r '.frontend_node_port' network_outputs.json)
 
           echo "ECR_REGISTRY=$ECR_REGISTRY"
           echo "ECR_FRONTEND_REPO=$FRONTEND_REPO"
           echo "ECR_BACKEND_REPO=$BACKEND_REPO"
           echo "ECR_DB_REPO=$DB_REPO"
+          echo "FRONTEND_LB_SG=$FRONTEND_LB_SG"
+          echo "FRONTEND_NODE_PORT=$FRONTEND_NODE_PORT"
 
           echo "=== Archivos en k8s/ ==="
           ls -la k8s/
@@ -140,6 +154,9 @@ jobs:
           find k8s -name '*.yaml' -exec sed -i "s|__ECR_FRONTEND_REPO__|$FRONTEND_REPO|g" {} \;
           find k8s -name '*.yaml' -exec sed -i "s|__ECR_BACKEND_REPO__|$BACKEND_REPO|g" {} \;
           find k8s -name '*.yaml' -exec sed -i "s|__ECR_DB_REPO__|$DB_REPO|g" {} \;
+          find k8s -name '*.yaml' -exec sed -i "s|__FRONTEND_LB_SG__|$FRONTEND_LB_SG|g" {} \;
+          find k8s -name '*.yaml' -exec sed -i "s|__FRONTEND_NODE_PORT__|$FRONTEND_NODE_PORT|g" {} \;
+          find k8s -name '*.yaml' -exec sed -i "s|__CLUSTER_NAME__|${{ needs.terraform.outputs.cluster_name }}|g" {} \;
 
       - name: Apply K8s manifests
         run: |
@@ -150,6 +167,14 @@ jobs:
           kubectl apply -f k8s/backend.yaml
           kubectl apply -f k8s/frontend.yaml
           kubectl apply -f k8s/hpa.yaml
+
+      - name: Aplicar CloudWatch Container Insights (best-effort, no bloqueante)
+        # No requiere IRSA/OIDC: usa el rol de instancia del node group. Si el
+        # rol no tiene permisos de CloudWatch (enable_node_cloudwatch_metrics
+        # en false, el default), los pods de este DaemonSet quedaran en
+        # CrashLoopBackOff sin afectar al resto de la app ni fallar el pipeline.
+        continue-on-error: true
+        run: kubectl apply -f k8s/cloudwatch-agent.yaml
 
       - name: Show resources (imagenes las pushean los pipelines de app)
         run: kubectl -n tienda get all
