@@ -22,6 +22,18 @@ jobs:
       - name: Configure kubectl
         run: aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-eks
 
+      - name: Estado del Node Group (EKS)
+        run: |
+          aws eks describe-nodegroup \
+            --cluster-name ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-eks \
+            --nodegroup-name ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-eks-nodes \
+            --query '{status: nodegroup.status, health: nodegroup.health, scaling: nodegroup.scalingConfig, capacityType: nodegroup.capacityType}'
+        continue-on-error: true
+
+      - name: Nodos de Kubernetes
+        run: kubectl get nodes -o wide
+        continue-on-error: true
+
       - name: Pods en todos los namespaces
         run: kubectl get pods -A -o wide
 
