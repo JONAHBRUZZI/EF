@@ -20,6 +20,11 @@ spec:
           image: __ECR_REGISTRY__/__ECR_FRONTEND_REPO__:latest
           ports:
             - containerPort: 80
+          env:
+            # FQDN completo: la directiva "resolver" de nginx no aplica el "search"
+            # de /etc/resolv.conf, necesita el nombre exacto que conoce CoreDNS.
+            - name: BACKEND_HOST
+              value: "backend.tienda.svc.cluster.local"
           resources:
             requests:
               cpu: 50m
