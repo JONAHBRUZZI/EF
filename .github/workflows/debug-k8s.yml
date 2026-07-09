@@ -1,0 +1,57 @@
+name: "DEBUG - Diagnostico K8s (temporal)"
+
+on:
+  workflow_dispatch:
+
+env:
+  TF_VAR_environment: ${{ vars.ENVIRONMENT }}
+  TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Configure kubectl
+        run: aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name ${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-eks
+
+      - name: Pods en todos los namespaces
+        run: kubectl get pods -A -o wide
+
+      - name: Describe pods de tienda
+        run: kubectl -n tienda describe pods
+
+      - name: Logs backend
+        run: kubectl -n tienda logs deployment/backend --tail=100
+        continue-on-error: true
+
+      - name: Logs frontend
+        run: kubectl -n tienda logs deployment/frontend --tail=100
+        continue-on-error: true
+
+      - name: CoreDNS status
+        run: kubectl -n kube-system get pods -o wide -l k8s-app=kube-dns
+        continue-on-error: true
+
+      - name: DNS y curl desde dentro del pod frontend
+        run: |
+          POD=$(kubectl -n tienda get pod -l app=frontend -o jsonpath='{.items[0].metadata.name}')
+          echo "=== nslookup backend desde $POD ==="
+          kubectl -n tienda exec "$POD" -- sh -c 'cat /etc/resolv.conf; echo "---"; nslookup backend || true'
+          echo "=== curl a backend:3001/api/health desde $POD ==="
+          kubectl -n tienda exec "$POD" -- sh -c 'curl -sv http://backend:3001/api/health --max-time 5 || true'
+        continue-on-error: true
+
+      - name: Security groups de la instancia
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${{ vars.ENVIRONMENT }}-${{ vars.PROJECT_NAME }}-node" "Name=instance-state-name,Values=running" --query 'Reservations[0].Instances[0].InstanceId' --output text)
+          echo "Instance: $INSTANCE_ID"
+          aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --query 'Reservations[0].Instances[0].SecurityGroups'
+        continue-on-error: true
